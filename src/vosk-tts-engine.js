@@ -14,6 +14,9 @@
   'use strict';
 
   var CORE_SRC = '/js/vosk-tts-core.js';
+  var STRESS_LOOKUP_SRC = '/js/vosk-stress-lookup.js';
+  var CUSTOM_TERMS_URL = '/js/vosk-custom-terms.json';
+  var STRESS_MARKER_URL = '/js/vosk-stress-marker.bin';
   var ORT_SRC = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js';
   var FFLATE_SRC = 'https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js';
   var MODEL_URL = 'https://alphacephei.com/vosk/models/vosk-model-tts-ru-0.9-multi.zip';
@@ -21,8 +24,27 @@
   var DB_NAME = 'gb-vosk-tts';
   var SAMPLE_RATE = 22050;
 
-  var state = { loading: null, ready: false, config: null, dic: null, tok: null, sess: null, bertSess: null };
+  var state = { loading: null, ready: false, config: null, dic: null, tok: null, sess: null, bertSess: null, stressLookup: null };
   var audioEl = null;
+
+  function fetchStressLookup() {
+    // Small same-origin assets (~700KB total) — no reason to gate the whole
+    // engine on them; a failure here just means no extra stress coverage,
+    // never breaks synthesis (vosk-tts's own dictionary/G2P still runs).
+    return Promise.all([
+      fetch(CUSTOM_TERMS_URL).then(function (r) { return r.ok ? r.json() : {}; }).catch(function () { return {}; }),
+      fetch(STRESS_MARKER_URL).then(function (r) { return r.ok ? r.arrayBuffer() : null; }).catch(function () { return null; })
+    ]).then(function (results) {
+      var customJson = results[0] || {};
+      var markerBuf = results[1];
+      delete customJson._comment;
+      var customTerms = new Map(Object.entries(customJson));
+      return new window.VoskStressLookup.StressLookup({ customTerms: customTerms, markerDictBuffer: markerBuf || undefined });
+    }).catch(function (err) {
+      console.warn('[vosk-tts] stress-lookup dictionaries unavailable, continuing without them:', err);
+      return null;
+    });
+  }
 
   function loadScript(src) {
     return new Promise(function (resolve, reject) {
@@ -102,13 +124,16 @@
     if (state.loading) return state.loading;
     state.loading = Promise.all([
       window.VoskTTSCore ? Promise.resolve() : loadScript(CORE_SRC),
+      window.VoskStressLookup ? Promise.resolve() : loadScript(STRESS_LOOKUP_SRC),
       window.fflate ? Promise.resolve() : loadScript(FFLATE_SRC),
       window.ort ? Promise.resolve() : loadScript(ORT_SRC)
     ]).then(function () {
       // single-threaded WASM: no SharedArrayBuffer / COOP-COEP headers required
       ort.env.wasm.numThreads = 1;
-      return fetchModelFiles();
-    }).then(function (files) {
+      return Promise.all([fetchModelFiles(), fetchStressLookup()]);
+    }).then(function (results) {
+      var files = results[0];
+      state.stressLookup = results[1];
       var td = new TextDecoder('utf-8');
       state.config = JSON.parse(td.decode(files['config.json']));
       state.dic = VoskTTSCore.parseDictionary(td.decode(files['dictionary']));
@@ -159,6 +184,23 @@
     });
   }
 
+  // Words vosk-tts's own dictionary doesn't know get NO stress at all
+  // (its g2p fallback has no accent info to work with). Where our extra
+  // dictionaries (site terminology + russian-stress-marker) DO know a word,
+  // splice in vosk-tts's own "+letter" marker before the stressed vowel —
+  // g2pConvert() already understands this convention for accented input.
+  // Words vosk-tts's dictionary already covers are left untouched even if
+  // our lookup also has an answer, since its own pronunciation should win.
+  function injectCustomStress(text) {
+    if (!state.stressLookup) return text;
+    return text.replace(/[а-яё]+/gi, function (word) {
+      var lower = word.toLowerCase();
+      if (state.dic.has(lower)) return word;
+      var plus = state.stressLookup.getPlusForm(lower);
+      return plus || word;
+    });
+  }
+
   function synthChunk(chunk, rate, speakerId) {
     var cfg = state.config;
     var inf = cfg.inference || {};
@@ -167,6 +209,7 @@
     var scale = inf.scale !== undefined ? inf.scale : 1.0;
     var speechRate = rate * (inf.speech_rate !== undefined ? inf.speech_rate : 1.0);
     chunk = chunk.trim().replace(/—/g, '-');
+    chunk = injectCustomStress(chunk);
     var mt = cfg.model_type || '';
     var knownMt = mt === 'multistream_v3' || mt === 'multistream_v2' || mt === 'multistream_v1';
     if (state.tok && !knownMt && !state._warnedUnknownModelType) {

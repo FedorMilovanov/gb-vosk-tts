@@ -26,7 +26,11 @@
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.StressLookup = factory();
+  // Named VoskStressLookup (not StressLookup) in the browser global scope —
+  // the module's own exports object has a same-named "StressLookup" class
+  // property, so `root.StressLookup = factory()` would shadow the
+  // constructor with the wrapper object under `window.StressLookup`.
+  else root.VoskStressLookup = factory();
 }(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
