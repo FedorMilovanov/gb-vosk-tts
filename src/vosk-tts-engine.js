@@ -7,6 +7,12 @@
  * (alphacephei.com — официальный хост той же модели — не отдаёт Access-Control-Allow-Origin,
  * поэтому cross-origin fetch() с этого сайта до него не доходит; huggingface.co подтверждённо
  * отдаёт "access-control-allow-origin: *" на этот файл, см. AuditRepo REPORT.md Round 3.)
+ * (Round 5, 2026-07-08: huggingface.co/.../resolve/main/... сам по себе — только редирект;
+ * реальные байты отдаёт их CDN "Xet" — us.aws.cdn.hf.co (или другой региональный поддомен
+ * *.aws.cdn.hf.co). Наш CSP connect-src разрешал только huggingface.co, поэтому браузер
+ * блокировал именно редирект-цель — Vosk НИ РАЗУ не заработал в проде с самого переезда на
+ * HF, тихо падая на Web Speech. CSP теперь включает https://*.aws.cdn.hf.co во всех
+ * *PageHead.astro/*PageChrome.astro + DEFAULT_DIST_CSP fallback.)
  *
  * Ничего не подключается, пока страница явно не вызовет ensureLoaded()/speak() — используется
  * только floating-cluster-controller.js по клику «Слушать».
