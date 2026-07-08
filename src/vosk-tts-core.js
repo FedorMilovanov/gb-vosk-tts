@@ -220,7 +220,7 @@
     t = t.replace(/[—–]/g, '-');
     t = t.replace(/…/g, '...');
     t = t.replace(/№/g, 'номер ');
-    t = t.replace(/(\d)[.,](\d)/g, '$1 и $2'); // decimals: "3,5" -> "3 и 5" (rough)
+    t = t.replace(/(\d)[.,](\d)/g, '$1 целых $2'); // decimals: "3,5" -> "3 целых 5" (still rough — no "десятых/сотых" magnitude — but reads as a number, not two unrelated digits joined by "и")
     t = t.replace(/\d+/g, function (m) { return ' ' + numberToWords(m) + ' '; });
     // drop words containing no Cyrillic at all (latin/tech tokens the model can't say)
     t = t.split(/(\s+)/).map(function (w) {

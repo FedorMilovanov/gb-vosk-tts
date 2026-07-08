@@ -47,6 +47,7 @@ check('num 2000000', core.numberToWords('2000000'), 'два миллиона');
 check('num 5001', core.numberToWords('5001'), 'пять тысяч один');
 check('norm text', core.normalizeText('В 1988 году (по данным «Отчёта») вышло 3 статьи — вот так…'),
   'В тысяча девятьсот восемьдесят восемь году , по данным Отчёта , вышло три статьи - вот так...');
+check('norm decimal', core.normalizeText('было 3,5 процента'), 'было три целых пять процента');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -2,8 +2,11 @@
  * vosk-tts-engine.js
  * Браузерный движок озвучки на базе vosk-tts (github.com/alphacep/vosk-tts, Apache 2.0):
  * настоящая нейросеть (VITS + BERT-эмбеддинги для ударений), инференс через onnxruntime-web,
- * целиком в браузере, без сервера. Модель качается с alphacephei.com один раз и кэшируется
+ * целиком в браузере, без сервера. Модель качается с Hugging Face один раз и кэшируется
  * в IndexedDB — при повторных визитах готова мгновенно.
+ * (alphacephei.com — официальный хост той же модели — не отдаёт Access-Control-Allow-Origin,
+ * поэтому cross-origin fetch() с этого сайта до него не доходит; huggingface.co подтверждённо
+ * отдаёт "access-control-allow-origin: *" на этот файл, см. AuditRepo REPORT.md Round 3.)
  *
  * Ничего не подключается, пока страница явно не вызовет ensureLoaded()/speak() — используется
  * только floating-cluster-controller.js по клику «Слушать».
@@ -19,7 +22,13 @@
   var STRESS_MARKER_URL = '/js/vosk-stress-marker.bin';
   var ORT_SRC = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js';
   var FFLATE_SRC = 'https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js';
-  var MODEL_URL = 'https://alphacephei.com/vosk/models/vosk-model-tts-ru-0.9-multi.zip';
+  var MODEL_URL = 'https://huggingface.co/CurtMil/gb-vosk-tts-model/resolve/main/vosk-model-tts-ru-0.9-multi.zip';
+  // Matches the SHA-256 GitHub itself computed for this exact file when it
+  // was uploaded as a release asset (gb-vosk-tts release "model-v1") — that
+  // upload is this hash's provenance. Update this whenever MODEL_URL points
+  // at different bytes (new upload / quantized variant / etc.), or every
+  // fresh download will fail the check below.
+  var EXPECTED_MODEL_SHA256 = '0aa332451ce46bfdbd620e74765fc16a4087988067c299969121ed0f8ed5bdf2';
   var NEEDED = ['model.onnx', 'dictionary', 'config.json', 'bert/model.onnx', 'bert/vocab.txt'];
   var DB_NAME = 'gb-vosk-tts';
   var SAMPLE_RATE = 22050;
@@ -104,15 +113,45 @@
     return files;
   }
 
+  function bufToHex(buf) {
+    var bytes = new Uint8Array(buf), hex = '';
+    for (var i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, '0');
+    return hex;
+  }
+
+  // Verifies the raw downloaded zip against EXPECTED_MODEL_SHA256 before it's
+  // trusted/unzipped/cached — the model is a 700+MB arbitrary binary fetched
+  // from a third-party host (Hugging Face) with no other integrity signal in
+  // this pipeline otherwise. Only runs on a fresh network download, not on
+  // cache hits (already-cached bytes were verified the first time they were
+  // stored). Skips (doesn't block playback) if SubtleCrypto is unavailable —
+  // e.g. very old browsers or a non-HTTPS context — rather than breaking TTS
+  // entirely over a missing nice-to-have safety check.
+  function verifyModelIntegrity(buf) {
+    if (!(window.crypto && window.crypto.subtle && window.crypto.subtle.digest)) return Promise.resolve();
+    return window.crypto.subtle.digest('SHA-256', buf).then(function (hash) {
+      var hex = bufToHex(hash);
+      if (hex !== EXPECTED_MODEL_SHA256) {
+        throw new Error('model integrity check failed: sha256 ' + hex.slice(0, 12) + '... != expected ' + EXPECTED_MODEL_SHA256.slice(0, 12) + '...');
+      }
+    });
+  }
+
+  // Cache key is MODEL_URL itself, not a fixed string — if the model file
+  // this constant points to ever changes (e.g. a future quantized upload),
+  // returning visitors automatically re-fetch instead of playing back a
+  // stale/mismatched cached model from IndexedDB under the old URL's entry.
   function fetchModelFiles() {
-    return idbGet('files').then(function (cached) {
+    return idbGet(MODEL_URL).then(function (cached) {
       if (cached) return cached;
       return fetch(MODEL_URL).then(function (resp) {
         if (!resp.ok) throw new Error('model download HTTP ' + resp.status);
         return resp.arrayBuffer();
       }).then(function (buf) {
-        var files = extractZip(new Uint8Array(buf));
-        return idbSet('files', files).then(function () { return files; });
+        return verifyModelIntegrity(buf).then(function () {
+          var files = extractZip(new Uint8Array(buf));
+          return idbSet(MODEL_URL, files).then(function () { return files; });
+        });
       });
     });
   }
@@ -182,6 +221,148 @@
       }
       return { rows: rows, hidden: hid };
     });
+  }
+
+  // Site-specific pre-normalization, run BEFORE VoskTTSCore.normalizeText()
+  // (which strips all non-Cyrillic characters — Roman numerals and Latin
+  // abbreviation letters must be converted to Cyrillic/digits here first,
+  // or normalizeText silently deletes them). See AuditRepo
+  // tts-quality-audit-2026-07-07 for the source of this list.
+
+  // Bible-book abbreviations actually attested in this site's own content
+  // (see e.g. the decorative Scripture background in js/enhancements.js) —
+  // not a general-purpose Bible-abbreviation dictionary. Each spoken form
+  // follows standard Russian citation convention (OT law/history books
+  // nominative matching their title; prophets/Gospels genitive per "Книга
+  // пророка .../Евангелие от ..."; epistles per their own preposition).
+  // Extend this list as new abbreviations turn up in real articles.
+  var SITE_ABBREVIATIONS = [
+    ['1 Цар.', 'первая книга Царств'],   // multi-word / numbered forms first,
+    ['1 Пет.', 'первое послание Петра'], // no shorter "Цар."/"Пет." entry to conflict with
+    ['Быт.', 'Бытие'],
+    ['Исх.', 'Исход'],
+    ['Лев.', 'Левит'],
+    ['Втор.', 'Второзаконие'],
+    ['Суд.', 'Судей'],
+    ['Пс.', 'Псалом'],
+    ['Ис.', 'Исаии'],
+    ['Иер.', 'Иеремии'],
+    ['Иез.', 'Иезекииля'],
+    ['Мал.', 'Малахии'],
+    ['Лк.', 'Луки'],
+    ['Ин.', 'Иоанна'],
+    ['Рим.', 'Римлянам'],
+    ['Откр.', 'Откровение'],
+    // Safe, invariant (no grammatical-case dependency) abbreviations.
+    // Both cases listed explicitly — plain split/join below is case-sensitive
+    // (no regex flags needed), and these can legally start a sentence.
+    ['т.е.', 'то есть'], ['Т.е.', 'То есть'],
+    ['т.д.', 'так далее'], ['Т.д.', 'Так далее'],
+    ['т.п.', 'тому подобное'], ['Т.п.', 'Тому подобное'],
+    ['см.', 'смотри'], ['См.', 'Смотри']
+  ];
+
+  // Roman numerals ("XIX век") were previously silently deleted by
+  // normalizeText's non-Cyrillic strip — the number vanished entirely,
+  // leaving just "век". Converts to a plain Arabic-numeral CARDINAL
+  // reading via the existing numberToWords pipeline: "XIX" -> "19" ->
+  // "девятнадцать". This is *not* grammatically correct for a century
+  // ("девятнадцатый век" — ordinal — would be correct); building a real
+  // Russian ordinal generator with gender/case agreement was out of scope
+  // for this pass. Still strictly better than the number disappearing.
+  var ROMAN_ORDER = ['M', 'CM', 'D', 'CD', 'C', 'XC', 'L', 'XL', 'X', 'IX', 'V', 'IV', 'I'];
+  var ROMAN_VALUES = { M: 1000, CM: 900, D: 500, CD: 400, C: 100, XC: 90, L: 50, XL: 40, X: 10, IX: 9, V: 5, IV: 4, I: 1 };
+  function romanToArabic(s) {
+    var i = 0, num = 0;
+    while (i < s.length) {
+      var matched = false;
+      for (var j = 0; j < ROMAN_ORDER.length; j++) {
+        var sym = ROMAN_ORDER[j];
+        if (s.slice(i, i + sym.length) === sym) { num += ROMAN_VALUES[sym]; i += sym.length; matched = true; break; }
+      }
+      if (!matched) return null;
+    }
+    return num;
+  }
+  function arabicToRoman(n) {
+    var out = '', rest = n;
+    for (var j = 0; j < ROMAN_ORDER.length; j++) {
+      var sym = ROMAN_ORDER[j];
+      while (rest >= ROMAN_VALUES[sym]) { out += sym; rest -= ROMAN_VALUES[sym]; }
+    }
+    return out;
+  }
+  function expandRomanNumerals(text) {
+    // Round-trip validation (arabicToRoman(n) === m) rejects malformed
+    // sequences (e.g. "IIII", "VV") and most incidental all-caps Latin
+    // words that happen to use only I/V/X/L/C/D/M — real prose essentially
+    // never contains standalone valid-roman-numeral Latin tokens.
+    return text.replace(/\b[IVXLCDM]{1,15}\b/g, function (m) {
+      var n = romanToArabic(m);
+      if (n === null || n <= 0 || n > 3999 || arabicToRoman(n) !== m) return m;
+      return String(n);
+    });
+  }
+
+  // Century references ("XIX век") are grammatically ORDINAL ("девятнадцатый
+  // век"/nineteenth century), not cardinal — expandRomanNumerals() above
+  // only produces a cardinal reading ("19 век"/"nineteen century"), audibly
+  // wrong. This covers the one bounded, common pattern: a Roman numeral
+  // immediately followed by "век" in one of its 5 singular case forms
+  // (masculine adjective agreement — "века" is treated as singular
+  // genitive, the far more common reading vs. a plural-range "XIX-XX века",
+  // which this doesn't special-case and falls through to the cardinal
+  // reading above instead — still an improvement over the number vanishing
+  // entirely, just not grammatically perfect for that narrower case).
+  var ORDINAL_UNITS = ['', 'первый', 'второй', 'третий', 'четвёртый', 'пятый', 'шестой', 'седьмой', 'восьмой', 'девятый'];
+  var ORDINAL_TEENS = ['десятый', 'одиннадцатый', 'двенадцатый', 'тринадцатый', 'четырнадцатый', 'пятнадцатый', 'шестнадцатый', 'семнадцатый', 'восемнадцатый', 'девятнадцатый'];
+  var ORDINAL_TENS = { 2: 'двадцатый', 3: 'тридцатый', 4: 'сороковой', 5: 'пятидесятый', 6: 'шестидесятый', 7: 'семидесятый', 8: 'восьмидесятый', 9: 'девяностый' };
+  var CARDINAL_TENS = { 2: 'двадцать', 3: 'тридцать', 4: 'сорок', 5: 'пятьдесят', 6: 'шестьдесят', 7: 'семьдесят', 8: 'восемьдесят', 9: 'девяносто' };
+  var VEK_CASE = { 'век': 'nom', 'века': 'gen', 'веку': 'dat', 'веком': 'instr', 'веке': 'prep' };
+  function ordinalNominative(n) {
+    if (n <= 0 || n > 99) return null;
+    if (n < 10) return ORDINAL_UNITS[n];
+    if (n < 20) return ORDINAL_TEENS[n - 10];
+    var tens = Math.floor(n / 10), units = n % 10;
+    if (units === 0) return ORDINAL_TENS[tens];
+    return CARDINAL_TENS[tens] + ' ' + ORDINAL_UNITS[units];
+  }
+  // "третий" (3rd) is the one irregular masculine ordinal (soft possessive-
+  // type declension); every other ordinal is a regular hard adjective —
+  // strip its nominative -ый/-ой ending and append the target case's suffix.
+  function declineOrdinal(phrase, caseCode) {
+    if (caseCode === 'nom' || !caseCode) return phrase;
+    var parts = phrase.split(' ');
+    var last = parts[parts.length - 1];
+    var declined;
+    if (last === 'третий') {
+      declined = { gen: 'третьего', dat: 'третьему', instr: 'третьим', prep: 'третьем' }[caseCode] || last;
+    } else {
+      declined = last.slice(0, -2) + ({ gen: 'ого', dat: 'ому', instr: 'ым', prep: 'ом' }[caseCode] || '');
+    }
+    parts[parts.length - 1] = declined;
+    return parts.join(' ');
+  }
+  function expandCenturyOrdinals(text) {
+    // [а-яё]* (not \w*) after "век" — JS regex \b/\w don't recognize
+    // Cyrillic as "word" characters, so \b never fires at a Cyrillic
+    // boundary and \w* never matches Cyrillic suffix letters at all.
+    return text.replace(/\b([IVXLCDM]{1,7})(\s+)(век[а-яё]*)/g, function (whole, roman, sp, vekForm) {
+      var n = romanToArabic(roman);
+      if (n === null || n <= 0 || n > 99 || arabicToRoman(n) !== roman) return whole;
+      var nomOrdinal = ordinalNominative(n);
+      if (!nomOrdinal) return whole;
+      var caseCode = VEK_CASE[vekForm.toLowerCase()] || 'nom';
+      return declineOrdinal(nomOrdinal, caseCode) + sp + vekForm;
+    });
+  }
+
+  function expandSiteAbbreviations(text) {
+    var out = text;
+    for (var i = 0; i < SITE_ABBREVIATIONS.length; i++) {
+      out = out.split(SITE_ABBREVIATIONS[i][0]).join(SITE_ABBREVIATIONS[i][1]);
+    }
+    return expandRomanNumerals(expandCenturyOrdinals(out));
   }
 
   // Words vosk-tts's own dictionary doesn't know get NO stress at all
@@ -293,7 +474,7 @@
   // записи через audio.playbackRate (не «съедает» фонемы на 2x).
   function speak(text, rate, speakerId, onend, onerror) {
     var handle = { engine: 'vosk', cancelled: false };
-    var norm = VoskTTSCore.normalizeText(text);
+    var norm = VoskTTSCore.normalizeText(expandSiteAbbreviations(text));
     if (!norm) { setTimeout(function () { if (!handle.cancelled) onend(); }, 0); return handle; }
     synthChunk(norm, rate || 1, speakerId || 0).then(function (pcm) {
       if (handle.cancelled) return;
