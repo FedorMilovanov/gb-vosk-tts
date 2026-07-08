@@ -22,13 +22,19 @@
   var STRESS_MARKER_URL = '/js/vosk-stress-marker.bin';
   var ORT_SRC = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js';
   var FFLATE_SRC = 'https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js';
-  var MODEL_URL = 'https://huggingface.co/CurtMil/gb-vosk-tts-model/resolve/main/vosk-model-tts-ru-0.9-multi.zip';
-  // Matches the SHA-256 GitHub itself computed for this exact file when it
-  // was uploaded as a release asset (gb-vosk-tts release "model-v1") — that
-  // upload is this hash's provenance. Update this whenever MODEL_URL points
-  // at different bytes (new upload / quantized variant / etc.), or every
+  // Quantized variant (782MB -> 280MB): BERT sub-model INT8 dynamic-quantized
+  // (654MB -> 156.5MB, ONNX Runtime quantize_dynamic, verified byte-identical
+  // *behavior* via real audio A/B before shipping — same site vocabulary,
+  // same speaker); the main VITS sub-model's quantized output had a broken
+  // MatMulInteger shape and was left at its original size. See AuditRepo
+  // tts-quality-audit-2026-07-07/-08 for the generation + verification steps.
+  var MODEL_URL = 'https://huggingface.co/CurtMil/gb-vosk-tts-model/resolve/main/model-quant.zip';
+  // SHA-256 computed locally from the exact bytes uploaded, then
+  // independently re-verified against the file the user actually has on
+  // disk (Get-FileHash) before this URL went live — both matched exactly.
+  // Update this whenever MODEL_URL points at different bytes, or every
   // fresh download will fail the check below.
-  var EXPECTED_MODEL_SHA256 = '0aa332451ce46bfdbd620e74765fc16a4087988067c299969121ed0f8ed5bdf2';
+  var EXPECTED_MODEL_SHA256 = '34e742ce9bb3c1ae86679d5974d2496b9fae50f0629f51bb4f5edfadc5ff3d71';
   var NEEDED = ['model.onnx', 'dictionary', 'config.json', 'bert/model.onnx', 'bert/vocab.txt'];
   var DB_NAME = 'gb-vosk-tts';
   var SAMPLE_RATE = 22050;
