@@ -1,5 +1,9 @@
 # gb-vosk-tts
 
+**Browser-side Russian word-stress correction and integration of the third-party Vosk TTS engine.** This is not a new or independently owned speech model.
+
+**At a glance:** [live consuming site](https://gospod-bog.ru) · [architecture](ARCHITECTURE.md) · [case study and evidence](CASE_STUDY.md) · [ownership and third-party attribution](OWNER.md) · [security policy](SECURITY.md).
+
 Russian stress (ударение) improvements for the client-side [vosk-tts](https://github.com/alphacep/vosk-tts)
 text-to-speech engine used on [gospod-bog.ru](https://gospod-bog.ru).
 
