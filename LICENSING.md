@@ -69,6 +69,37 @@ Until these are evidenced, **model provenance = PARTIAL; quantized-model rights/
 
 ---
 
+## Reproducible offline archive verification (not automated model clearance)
+
+The repository includes [a streaming local verifier](tools/verify_model_release.py)
+for four **user-provided** archives: the official Alpha Cephei `0.9-multi` ZIP,
+the project's GitHub `model-v1` release asset, the Hugging Face original ZIP,
+and the hosted `model-quant.zip`. No model downloads, inference, extraction,
+or claim of rights clearance occur in CI. The tiny synthetic self-tests run
+on PRs that change the verifier.
+
+Run after downloading and preserving the four archives:
+
+```bash
+python3 tools/verify_model_release.py \
+  --official /path/to/official-0.9.zip \
+  --github-release /path/to/model-v1.zip \
+  --hf-original /path/to/hf-original.zip \
+  --hf-quant /path/to/model-quant.zip > model-verification.json
+```
+
+Exit code 0 requires the publisher MD5 and length, the published SHA-256
+chain, identical original bytes, and exactly one modified ZIP member
+(`bert/model.onnx`) with no added/removed files and standard
+license/NOTICE filenames present in both archives. Even then, the JSON output
+**always** reports `model_rights: HOLD`: hashes and the presence
+of a notice filename do not establish the notice's legal adequacy, the exact
+quantization environment, or a completed rights review. Inspect any notices
+and document the actual quantization toolchain separately. Do not check in
+the ZIPs or local verification output.
+
+---
+
 ## Redistribution rules
 
 - The root [LICENSE](LICENSE) is the project's standard **MIT** text for
