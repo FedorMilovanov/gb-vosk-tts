@@ -1,3 +1,9 @@
+/* SPDX-License-Identifier: MIT
+ * Adapts the dictionary decoding/data mappings of zdarsch/russian-stress-marker
+ * (Copyright (c) 2024 zdarsch, MIT), with changes for layered lookups and
+ * Vosk's +before-vowel notation. Preserve the upstream MIT notice in
+ * THIRD_PARTY_LICENSES/russian-stress-marker-MIT.txt.
+ */
 /**
  * stress-lookup.js
  *

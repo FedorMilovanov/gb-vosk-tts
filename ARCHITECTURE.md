@@ -29,6 +29,7 @@ Host site (gb-is-my-strength): user requests playback
 - `data/custom-terms.json`: site-specific terminology; review confidence and locators before editing using `data/REVIEW-custom-terms.md`.
 - `data/russian-stress-marker.bin`: vendored ~722 KB third-party dictionary, **not** an original data set. See `THIRD_PARTY_NOTICES.md`.
 - The upstream speech model is fetched over the network. The pinned model URL and its expected SHA-256 live in `src/vosk-tts-engine.js`; changing one without verifying the other is unsafe.
+- `src/vosk-tts-core.js` is a port of Vosk Python text processing and conservatively retains upstream **Apache-2.0** terms; the stress decoder and dictionary retain upstream **MIT** terms. This is a mixed-license project, not an original model; see [LICENSING.md](LICENSING.md) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 - The consuming site's script paths and Content Security Policy are integration responsibilities of [gb-is-my-strength](https://github.com/FedorMilovanov/gb-is-my-strength), not a guarantee from these source files.
 
 ## Verification

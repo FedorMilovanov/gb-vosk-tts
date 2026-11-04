@@ -68,11 +68,15 @@ lookup.getPlusForm('диспенсационализм'); // -> "диспенс�
 lookup.getPlusForm('незнакомоеслово');   // -> null (fall back as before)
 ```
 
-## License
+## License and provenance
 
-This repo's own code and `data/custom-terms.json`: MIT (see `LICENSE`).
-The vendored `data/russian-stress-marker.bin` and its decoder in
-`stress-lookup.js` are also MIT — see `THIRD_PARTY_NOTICES.md` for the
-exact provenance and why other candidate dictionaries (Silero Stress,
-RUAccent, StressRNN's Zaliznyak-derived dictionary) were rejected on
-licensing grounds.
+This is a **mixed-license integration**, not an independently owned TTS model.
+
+| Component | Terms | Evidence |
+|---|---|---|
+| `src/vosk-tts-core.js` (port of Vosk text pipeline) | **Apache-2.0**; upstream Alpha Cephei attribution and modification notice retained | [Upstream license](THIRD_PARTY_LICENSES/vosk-tts-APACHE-2.0.txt), [provenance](THIRD_PARTY_NOTICES.md) |
+| `src/stress-lookup.js`, `data/russian-stress-marker.bin` | **MIT**, preserving the original `zdarsch` notice and this project's changes | [Upstream MIT license](THIRD_PARTY_LICENSES/russian-stress-marker-MIT.txt) |
+| This project's original browser orchestration, vocabulary, tests and tools | **MIT**, only for portions not subject to other upstream terms | [MIT license](LICENSE) |
+| ONNX speech model downloaded from external Hugging Face hosting | Third-party Vosk model; hosting card declares **Apache-2.0**. Quantization and redistribution require their own provenance | [Licensing map](LICENSING.md) |
+
+The Apache-2.0 requirements are **not** replaced by the MIT license, and the model is not authored by this project. See [LICENSING.md](LICENSING.md) for scope, upstream links and remaining verification boundaries.
