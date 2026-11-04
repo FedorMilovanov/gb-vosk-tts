@@ -1,3 +1,11 @@
+/* SPDX-License-Identifier: Apache-2.0
+ * This JavaScript text-processing port adapts alphacep/vosk-tts, including
+ * vosk_tts/g2p.py, model.py and synth.py (Apache-2.0; Alpha Cephei and contributors).
+ * Modified in 2026 for JavaScript, browser integration, normalization, tokenization
+ * and stream preparation. The upstream license and change/provenance notes are at
+ * THIRD_PARTY_LICENSES/vosk-tts-APACHE-2.0.txt and THIRD_PARTY_NOTICES.md.
+ * This designation is intentionally conservative for the complete ported file.
+ */
 /* vosk-tts-core.js — JS port of alphacep/vosk-tts Python pipeline (g2p.py + synth.py text side).
    Faithful to master @ 2026-07: dictionary lookup → rule G2P fallback → multistream phoneme
    streams + BERT word embeddings. ONNX inference itself lives in the host page; this module

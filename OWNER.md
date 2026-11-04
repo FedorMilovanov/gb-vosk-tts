@@ -17,7 +17,9 @@ The repository is developed and maintained through human-directed work with soft
 | Base TTS pipeline and model | [alphacep/vosk-tts](https://github.com/alphacep/vosk-tts), Apache-2.0 | Not authored or owned by this repository; the model is downloaded at runtime, not redistributed here |
 | Word-form dictionary `data/russian-stress-marker.bin` | [zdarsch/russian-stress-marker](https://github.com/zdarsch/russian-stress-marker), MIT | Vendored third-party data; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) |
 | Browser inference library | onnxruntime-web, externally loaded by the host integration | Not authored by this repository |
-| Original project files | [LICENSE](LICENSE) and the qualifications in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Copyright statement and scope are limited to the material described there |
+| Vosk pipeline port `src/vosk-tts-core.js` | Upstream Alpha Cephei, Apache-2.0; [full text](THIRD_PARTY_LICENSES/vosk-tts-APACHE-2.0.txt) and [modification record](THIRD_PARTY_NOTICES.md) | Adapted upstream rules and code structure, **not** an independent ownership claim |
+| Original browser orchestration and project-specific tools/data | Project MIT [LICENSE](LICENSE), subject to [licensing map](LICENSING.md) | MIT applies only to original portions; does not supersede Apache-2.0 or the external model |
+| Third-party stress decoder and dictionary | Upstream zdarsch, MIT; [full notice](THIRD_PARTY_LICENSES/russian-stress-marker-MIT.txt) | The adapted decoder and vendored dictionary retain source attribution |
 
 For the technical boundary see [ARCHITECTURE.md](ARCHITECTURE.md); for what was solved and what **has not** been demonstrated, see [CASE_STUDY.md](CASE_STUDY.md).
 

@@ -1,3 +1,9 @@
+/* SPDX-License-Identifier: MIT
+ * This browser orchestration layer is distinct from the Apache-2.0
+ * vosk-tts text-processing port in src/vosk-tts-core.js. The externally
+ * hosted Vosk model and the ONNX runtime are third-party components.
+ * See LICENSING.md and THIRD_PARTY_NOTICES.md for attribution.
+ */
 /**
  * vosk-tts-engine.js
  * Браузерный движок озвучки на базе vosk-tts (github.com/alphacep/vosk-tts, Apache 2.0):

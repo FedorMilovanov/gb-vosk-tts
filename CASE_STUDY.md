@@ -17,7 +17,7 @@ The open-source `vosk-tts` text path cannot supply reliable stress marks for som
 - The vendored dictionary is approximately 722 KB and is described by its upstream as containing roughly two million Russian word forms. **That is upstream dictionary coverage, not a measured improvement in this site's pronunciation accuracy.**
 - The JavaScript text pipeline is documented as a port evaluated against the real Python package; the original Python engine, inference runtime and speech model are third-party technology.
 - This repository includes the source integration and tests, but does not independently prove how many words became correct in production, the live playback success rate, latency or any commercial outcome. Claims about those results require separately dated downstream evidence.
-- The original project license and third-party notices are separate: [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+- The ported Vosk text-processing file remains subject to Apache-2.0, while the upstream stress decoder and dictionary retain MIT notices. The project's own MIT license does not override those obligations: see [LICENSING.md](LICENSING.md), [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Reproduce the code-level checks
 
